@@ -11,3 +11,5 @@ Predictions come from temperaturadomar.pt for Jijoca de Jericoacoara and are not
 ## Deploy
 
 Repo Settings → Pages → Source "Deploy from a branch" → branch `main`, folder `/ (root)`.
+
+https://majcherpiotrek.github.io/guriu-tides-2026/
