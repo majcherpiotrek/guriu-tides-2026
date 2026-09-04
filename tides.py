@@ -118,7 +118,8 @@ def build_days(events):
             m2 = e["t"] + (nxt["t"] - e["t"]) / 2       # rising mid
             a, b = max(m1, w_start), min(m2, w_end)
             if b - a >= dt.timedelta(hours=1) and e["h"] >= 0.5:
-                sail = {"from": a, "to": b, "low": e}
+                sail = {"from": a, "to": b, "low": e,
+                        "hours": (b - a).total_seconds() / 3600}
         days.append({"date": d, "sunrise": sr, "sunset": ss, "amp": amp, "sail": sail,
                      "items": items, "min_low": min(lows), "max_high": max(highs)})
         d += dt.timedelta(days=1)
@@ -160,8 +161,8 @@ def render(days):
                     arrow = "&#8599;" if it["dir"] == "rising" else "&#8600;"
                     rows.append(f'<li class="mid"><span>{fmt(it["t"])}</span><b>mid {arrow}</b><i>{it["h"]:.2f} m</i></li>')
             sail = x["sail"]
-            cls = "cell sail" if sail else "cell"
-            sail_html = (f'<div class="win">sail {fmt(sail["from"])}&ndash;{fmt(sail["to"])}</div>' if sail else "")
+            cls = "cell sail" if sail and sail["hours"] >= 2 else "cell"
+            sail_html = (f'<div class="win">sail {fmt(sail["from"])}&ndash;{fmt(sail["to"])} <span>({sail["hours"]:.1f} h)</span></div>' if sail else "")
             cells.append(
                 f'<div class="{cls}" style="--bg:{bg};--fg:{fg}">'
                 f'<div class="head"><span class="dnum">{x["date"].day}</span>'
@@ -202,6 +203,8 @@ main {{ max-width:1180px; margin:0 auto; }}
 .cell.pad {{ background:transparent; border:none; }}
 .cell.sail {{ outline:3px solid #1e9e4a; outline-offset:-1px; }}
 .win {{ font-size:12px; font-weight:600; color:#187a3a; margin:-2px 0 6px; }}
+.cell:not(.sail) .win {{ color:var(--muted); font-weight:500; }}
+.win span {{ font-weight:500; }}
 .legend {{ display:flex; align-items:center; gap:10px; margin:10px 0 4px; color:var(--muted); }}
 .legend .box {{ width:34px; height:22px; border:1px solid var(--line); border-radius:6px; outline:3px solid #1e9e4a; outline-offset:-1px; background:#fff; }}
 .head {{ display:flex; justify-content:space-between; align-items:baseline; }}
@@ -227,7 +230,7 @@ li.mid b {{ font-weight:500; }}
 (highest high minus lowest low that day): green = smallest range, red = largest range.
 "mid" rows are the halfway points between consecutive high and low water – the arrow shows whether the water is rising or falling.</p>
 <div class="scale"><span>{lo:.2f} m</span><div class="bar"></div><span>{hi:.2f} m</span></div>
-<div class="legend"><div class="box"></div><span>Green outline = potentially sailable: the mid&#8600; low &#8599;mid window overlaps 11:00&ndash;17:00 by at least an hour and the low water is 0.50 m or higher (below that the window is too short and the low too dry to sail). The "sail" line in the cell is that overlap.</span></div>
+<div class="legend"><div class="box"></div><span>Green outline = at least 2 hours of sail time: the mid&#8600; low &#8599;mid window overlaps 11:00&ndash;17:00 for 2 hours or more and the low water is 0.50 m or higher (below that the low is too dry to sail). The "sail" line in the cell is that overlap and its length &ndash; days with a shorter window still show the line, in grey, but get no outline.</span></div>
 <p>Smallest ranges: {daylist(best)}.</p>
 <p>Largest ranges: {daylist(worst)}.</p>
 </header>
@@ -254,13 +257,15 @@ if __name__ == "__main__":
         f.write(render(days))
     # also a CSV
     with open("tides.csv", "w") as f:
-        f.write("date,amplitude_m,sunrise,sunset,sailable_from,sailable_to,time,event,height_m\n")
+        f.write("date,amplitude_m,sunrise,sunset,sailable_from,sailable_to,sailable_hours,marked,time,event,height_m\n")
         for x in days:
             for it in x["items"]:
                 k = {"H": "high", "L": "low", "M": "mid-" + it.get("dir", "")}[it["kind"]]
                 sf = f'{x["sail"]["from"]:%H:%M}' if x["sail"] else ""
                 st = f'{x["sail"]["to"]:%H:%M}' if x["sail"] else ""
-                f.write(f'{x["date"]},{x["amp"]:.2f},{x["sunrise"]:%H:%M},{x["sunset"]:%H:%M},{sf},{st},{it["t"]:%H:%M},{k},{it["h"]:.2f}\n')
+                sh = f'{x["sail"]["hours"]:.2f}' if x["sail"] else ""
+                mk = "yes" if x["sail"] and x["sail"]["hours"] >= 2 else ""
+                f.write(f'{x["date"]},{x["amp"]:.2f},{x["sunrise"]:%H:%M},{x["sunset"]:%H:%M},{sf},{st},{sh},{mk},{it["t"]:%H:%M},{k},{it["h"]:.2f}\n')
     for x in days[:3]:
         print(x["date"], f'{x["amp"]:.2f}', x["sunrise"].strftime("%H:%M"), x["sunset"].strftime("%H:%M"),
               [(i["t"].strftime("%H:%M"), i["kind"], round(i["h"], 2)) for i in x["items"]])
